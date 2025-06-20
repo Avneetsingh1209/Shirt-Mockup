@@ -78,32 +78,40 @@ if st.session_state.design_files and shirt_files:
     )
 
     if st.button("🔍 Preview Placement"):
-        preview_design = Image.open(st.session_state.design_files[0]).convert("RGBA")
-        preview_shirt = Image.open(preview_shirt_file).convert("RGBA")
+        try:
+            design_file = st.session_state.design_files[0]
+            design_file.seek(0)
+            preview_design = Image.open(design_file).convert("RGBA")
 
-        is_model = "model" in preview_shirt_file.name.lower()
-        offset_pct = model_offset_pct if is_model else plain_offset_pct
-        padding_ratio = model_padding_ratio if is_model else plain_padding_ratio
+            preview_shirt_file.seek(0)
+            preview_shirt = Image.open(preview_shirt_file).convert("RGBA")
 
-        bbox = get_shirt_bbox(preview_shirt)
-        if bbox:
-            sx, sy, sw, sh = bbox
-            scale = min(sw / preview_design.width, sh / preview_design.height, 1.0) * padding_ratio
-            new_width = int(preview_design.width * scale)
-            new_height = int(preview_design.height * scale)
-            resized_design = preview_design.resize((new_width, new_height))
+            is_model = "model" in preview_shirt_file.name.lower()
+            offset_pct = model_offset_pct if is_model else plain_offset_pct
+            padding_ratio = model_padding_ratio if is_model else plain_padding_ratio
 
-            y_offset = int(sh * offset_pct / 100)
-            x = sx + (sw - new_width) // 2
-            y = sy + y_offset
-        else:
-            resized_design = preview_design
-            x = (preview_shirt.width - preview_design.width) // 2
-            y = (preview_shirt.height - preview_design.height) // 2
+            bbox = get_shirt_bbox(preview_shirt)
+            if bbox:
+                sx, sy, sw, sh = bbox
+                scale = min(sw / preview_design.width, sh / preview_design.height, 1.0) * padding_ratio
+                new_width = int(preview_design.width * scale)
+                new_height = int(preview_design.height * scale)
+                resized_design = preview_design.resize((new_width, new_height))
 
-        preview_copy = preview_shirt.copy()
-        preview_copy.paste(resized_design, (x, y), resized_design)
-        st.image(preview_copy, caption="📸 Preview", use_column_width=True)
+                y_offset = int(sh * offset_pct / 100)
+                x = sx + (sw - new_width) // 2
+                y = sy + y_offset
+            else:
+                resized_design = preview_design
+                x = (preview_shirt.width - preview_design.width) // 2
+                y = (preview_shirt.height - preview_design.height) // 2
+
+            preview_copy = preview_shirt.copy()
+            preview_copy.paste(resized_design, (x, y), resized_design)
+            st.image(preview_copy, caption="📸 Preview", use_column_width=True)
+
+        except Exception as e:
+            st.error(f"❌ Could not generate preview: {e}")
 
 # --- Generate Mockups ---
 if st.button("🚀 Generate Mockups"):
@@ -112,12 +120,14 @@ if st.button("🚀 Generate Mockups"):
     else:
         for design_file in st.session_state.design_files:
             graphic_name = st.session_state.design_names.get(design_file.name, "graphic")
+            design_file.seek(0)
             design = Image.open(design_file).convert("RGBA")
 
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED) as zipf:
                 for shirt_file in shirt_files:
                     color_name = os.path.splitext(shirt_file.name)[0]
+                    shirt_file.seek(0)
                     shirt = Image.open(shirt_file).convert("RGBA")
 
                     is_model = "model" in shirt_file.name.lower()
