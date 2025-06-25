@@ -7,11 +7,11 @@ import cv2
 import os
 
 st.set_page_config(page_title="Shirt Mockup Generator", layout="centered")
-st.title("👕 Shirt Mockup Generator – Manual Tag for Model Shirts")
+st.title("👕 Shirt Mockup Generator – Live Preview")
 
 st.markdown("""
 Upload multiple design PNGs and shirt templates.  
-Tag shirt mockups as either plain or with a model to fine-tune placement offsets.
+Use sliders to adjust placement and preview in real-time.
 """)
 
 # --- Sidebar Controls ---
@@ -23,30 +23,17 @@ model_offset_pct = st.sidebar.slider("Vertical Offset – Model Shirt (%)", -50,
 # --- Session Setup ---
 if "zip_files_output" not in st.session_state:
     st.session_state.zip_files_output = {}
-if "design_files" not in st.session_state:
-    st.session_state.design_files = None
 if "design_names" not in st.session_state:
     st.session_state.design_names = {}
 
 # --- Upload Section ---
-st.session_state.design_files = st.file_uploader(
-    "📌 Upload Design Images (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"], accept_multiple_files=True
-)
-shirt_files = st.file_uploader(
-    "🎨 Upload Shirt Templates (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"], accept_multiple_files=True
-)
-
-# --- Clear Button ---
-if st.button("🔄 Start Over (Clear Generated Mockups)"):
-    for key in ["design_files", "design_names", "zip_files_output"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.rerun()
+design_files = st.file_uploader("📌 Upload Design Images", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+shirt_files = st.file_uploader("🎨 Upload Shirt Templates", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
 # --- Design Naming ---
-if st.session_state.design_files:
+if design_files:
     st.markdown("### ✏️ Name Each Design")
-    for i, file in enumerate(st.session_state.design_files):
+    for i, file in enumerate(design_files):
         default_name = os.path.splitext(file.name)[0]
         custom_name = st.text_input(
             f"Name for Design {i+1} ({file.name})", 
@@ -55,7 +42,7 @@ if st.session_state.design_files:
         )
         st.session_state.design_names[file.name] = custom_name
 
-# --- Bounding Box Detection ---
+# --- Bounding Box Function ---
 def get_shirt_bbox(pil_image):
     img_cv = np.array(pil_image.convert("RGB"))[:, :, ::-1]
     gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
@@ -67,58 +54,52 @@ def get_shirt_bbox(pil_image):
         return cv2.boundingRect(largest)
     return None
 
-# --- Preview Section ---
-if st.session_state.design_files and shirt_files:
-    st.markdown("### 👀 Preview Placement (First Design Only)")
+# --- Live Preview ---
+if design_files and shirt_files:
+    st.markdown("### 👀 Live Preview")
 
-    preview_shirt_file = st.selectbox(
-        "Select a Shirt Template for Preview",
-        shirt_files,
-        format_func=lambda x: x.name if x else "Select file"
-    )
+    selected_design = st.selectbox("Select a Design", design_files, format_func=lambda x: x.name)
+    selected_shirt = st.selectbox("Select a Shirt Template", shirt_files, format_func=lambda x: x.name)
 
-    if st.button("🔍 Preview Placement"):
-        try:
-            design_file = st.session_state.design_files[0]
-            design_file.seek(0)
-            preview_design = Image.open(design_file).convert("RGBA")
+    try:
+        selected_design.seek(0)
+        design = Image.open(selected_design).convert("RGBA")
 
-            preview_shirt_file.seek(0)
-            preview_shirt = Image.open(preview_shirt_file).convert("RGBA")
+        selected_shirt.seek(0)
+        shirt = Image.open(selected_shirt).convert("RGBA")
 
-            is_model = "model" in preview_shirt_file.name.lower()
-            offset_pct = model_offset_pct if is_model else plain_offset_pct
-            padding_ratio = model_padding_ratio if is_model else plain_padding_ratio
+        is_model = "model" in selected_shirt.name.lower()
+        offset_pct = model_offset_pct if is_model else plain_offset_pct
+        padding_ratio = model_padding_ratio if is_model else plain_padding_ratio
 
-            bbox = get_shirt_bbox(preview_shirt)
-            if bbox:
-                sx, sy, sw, sh = bbox
-                scale = min(sw / preview_design.width, sh / preview_design.height, 1.0) * padding_ratio
-                new_width = int(preview_design.width * scale)
-                new_height = int(preview_design.height * scale)
-                resized_design = preview_design.resize((new_width, new_height))
+        bbox = get_shirt_bbox(shirt)
+        if bbox:
+            sx, sy, sw, sh = bbox
+            scale = min(sw / design.width, sh / design.height, 1.0) * padding_ratio
+            new_width = int(design.width * scale)
+            new_height = int(design.height * scale)
+            resized_design = design.resize((new_width, new_height))
 
-                y_offset = int(sh * offset_pct / 100)
-                x = sx + (sw - new_width) // 2
-                y = sy + y_offset
-            else:
-                resized_design = preview_design
-                x = (preview_shirt.width - preview_design.width) // 2
-                y = (preview_shirt.height - preview_design.height) // 2
+            y_offset = int(sh * offset_pct / 100)
+            x = sx + (sw - new_width) // 2
+            y = sy + y_offset
+        else:
+            resized_design = design
+            x = (shirt.width - design.width) // 2
+            y = (shirt.height - design.height) // 2
 
-            preview_copy = preview_shirt.copy()
-            preview_copy.paste(resized_design, (x, y), resized_design)
-            st.image(preview_copy, caption="📸 Preview", use_column_width=True)
-
-        except Exception as e:
-            st.error(f"❌ Could not generate preview: {e}")
+        preview = shirt.copy()
+        preview.paste(resized_design, (x, y), resized_design)
+        st.image(preview, caption="📸 Live Mockup Preview", use_column_width=True)
+    except Exception as e:
+        st.error(f"⚠️ Preview failed: {e}")
 
 # --- Generate Mockups ---
-if st.button("🚀 Generate Mockups"):
-    if not (st.session_state.design_files and shirt_files):
-        st.warning("Please upload at least one design and one shirt template.")
+if st.button("🚀 Generate All Mockups as ZIP"):
+    if not (design_files and shirt_files):
+        st.warning("Upload at least one design and one shirt template.")
     else:
-        for design_file in st.session_state.design_files:
+        for design_file in design_files:
             graphic_name = st.session_state.design_names.get(design_file.name, "graphic")
             design_file.seek(0)
             design = Image.open(design_file).convert("RGBA")
@@ -162,7 +143,7 @@ if st.button("🚀 Generate Mockups"):
             zip_buffer.seek(0)
             st.session_state.zip_files_output[graphic_name] = zip_buffer
 
-        st.success("✅ All mockups generated and centered!")
+        st.success("✅ All mockups generated!")
 
 # --- Download Buttons ---
 if st.session_state.zip_files_output:
