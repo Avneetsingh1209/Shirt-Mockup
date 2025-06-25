@@ -90,7 +90,7 @@ if design_files and shirt_files:
 
         preview = shirt.copy()
         preview.paste(resized_design, (x, y), resized_design)
-        st.image(preview, caption="📸 Live Mockup Preview", use_column_width=True)
+        st.image(preview, caption="📸 Live Mockup Preview", use_container_width=True)
     except Exception as e:
         st.error(f"⚠️ Preview failed: {e}")
 
@@ -155,3 +155,18 @@ if st.session_state.zip_files_output:
             mime="application/zip",
             key=f"download_{name}"
         )
+# --- Combine All ZIPs into One ZIP ---
+if st.session_state.zip_files_output:
+    combined_zip = io.BytesIO()
+    with zipfile.ZipFile(combined_zip, "w", zipfile.ZIP_DEFLATED) as master_zip:
+        for name, zip_data in st.session_state.zip_files_output.items():
+            zip_data.seek(0)
+            master_zip.writestr(f"{name}.zip", zip_data.read())
+    combined_zip.seek(0)
+
+    st.download_button(
+        label="📦 Download ALL Mockups (One ZIP)",
+        data=combined_zip,
+        file_name="all_mockups.zip",
+        mime="application/zip"
+    )
