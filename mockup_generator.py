@@ -145,18 +145,19 @@ if st.button("🚀 Generate All Mockups as ZIP"):
 
         st.success("✅ All mockups generated!")
 
-# --- Download Buttons ---
+# --- Individual Download Buttons ---
 if st.session_state.zip_files_output:
+    st.markdown("### 📥 Download Each Design’s ZIP")
     for name, zip_data in st.session_state.zip_files_output.items():
         st.download_button(
-            label=f"📦 Download {name}.zip",
+            label=f"Download {name}.zip",
             data=zip_data,
             file_name=f"{name}.zip",
             mime="application/zip",
             key=f"download_{name}"
         )
-# --- Combine All ZIPs into One ZIP ---
-if st.session_state.zip_files_output:
+
+    # --- Combine All ZIPs into One ZIP ---
     combined_zip = io.BytesIO()
     with zipfile.ZipFile(combined_zip, "w", zipfile.ZIP_DEFLATED) as master_zip:
         for name, zip_data in st.session_state.zip_files_output.items():
