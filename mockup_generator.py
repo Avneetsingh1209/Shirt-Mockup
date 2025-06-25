@@ -5,7 +5,6 @@ import zipfile
 import io
 import cv2
 import os
-from tempfile import TemporaryDirectory
 
 st.set_page_config(page_title="Shirt Mockup Generator", layout="centered")
 st.title("👕 Shirt Mockup Generator – Manual Tag for Model Shirts")
@@ -68,26 +67,18 @@ def get_shirt_bbox(pil_image):
         return cv2.boundingRect(largest)
     return None
 
-# --- Preview Section ---
-# --- Preview Section ---
+# --- Preview Section (Single Design, Static Button) ---
 if st.session_state.design_files and shirt_files:
-    st.markdown("### 👀 Preview Placement (Design-wise)")
+    st.markdown("### 👀 Preview Placement (First Design Only)")
 
     preview_shirt_file = st.selectbox(
-        "🧥 Select a Shirt Template for Preview",
+        "Select a Shirt Template for Preview",
         shirt_files,
         format_func=lambda x: x.name if x else "Select file"
     )
 
-    st.markdown("#### 🎨 Select a Design to Preview")
-    selected_design = st.selectbox(
-        "Choose a design",
-        st.session_state.design_files,
-        format_func=lambda x: x.name
-    )
-
     if st.button("🔍 Preview Placement"):
-        preview_design = Image.open(selected_design).convert("RGBA")
+        preview_design = Image.open(st.session_state.design_files[0]).convert("RGBA")
         preview_shirt = Image.open(preview_shirt_file).convert("RGBA")
 
         is_model = "model" in preview_shirt_file.name.lower()
@@ -113,9 +104,6 @@ if st.session_state.design_files and shirt_files:
         preview_copy = preview_shirt.copy()
         preview_copy.paste(resized_design, (x, y), resized_design)
         st.image(preview_copy, caption="📸 Preview", use_container_width=True)
-
-    if st.button("❌ Reset Preview"):
-        st.rerun()
 
 # --- Generate Mockups ---
 if st.button("🚀 Generate Mockups"):
