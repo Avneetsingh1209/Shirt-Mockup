@@ -26,21 +26,16 @@ if "zip_files_output" not in st.session_state:
 if "design_names" not in st.session_state:
     st.session_state.design_names = {}
 
+# --- Clear Design Button (safe!) ---
+if st.button("🔄 Start Over (Clear Generated Mockups)"):
+    for key in ["design_files", "design_names", "zip_files_output"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.rerun()
+
 # --- Upload Section ---
 design_files = st.file_uploader("📌 Upload Design Images", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 shirt_files = st.file_uploader("🎨 Upload Shirt Templates", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
-
-# --- Design Naming ---
-if design_files:
-    st.markdown("### ✏️ Name Each Design")
-    for i, file in enumerate(design_files):
-        default_name = os.path.splitext(file.name)[0]
-        custom_name = st.text_input(
-            f"Name for Design {i+1} ({file.name})", 
-            value=st.session_state.design_names.get(file.name, default_name),
-            key=f"name_input_{i}_{file.name}"
-        )
-        st.session_state.design_names[file.name] = custom_name
 
 # --- Bounding Box Function ---
 def get_shirt_bbox(pil_image):
