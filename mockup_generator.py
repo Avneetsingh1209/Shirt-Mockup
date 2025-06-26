@@ -7,33 +7,44 @@ import cv2
 import os
 
 st.set_page_config(page_title="Shirt Mockup Generator", layout="centered")
-st.title("👕 Shirt Mockup Generator – Live Preview")
+st.title("👕 Shirt Mockup Generator – Folder-based ZIP")
 
 st.markdown("""
 Upload multiple design PNGs and shirt templates.  
-Use sliders to adjust placement and preview in real-time.
+Live preview, placement control, and download all mockups organized by design name.
 """)
 
-# --- Sidebar Sliders ---
+# --- Sidebar Controls ---
 plain_padding_ratio = st.sidebar.slider("Padding Ratio – Plain Shirt", 0.1, 1.0, 0.45, 0.05)
 model_padding_ratio = st.sidebar.slider("Padding Ratio – Model Shirt", 0.1, 1.0, 0.35, 0.05)
 plain_offset_pct = st.sidebar.slider("Vertical Offset – Plain Shirt (%)", -50, 100, -7, 1)
 model_offset_pct = st.sidebar.slider("Vertical Offset – Model Shirt (%)", -50, 100, 3, 1)
 
-# --- Session Setup ---
-if "mockup_zip" not in st.session_state:
-    st.session_state.mockup_zip = None
+# --- Clear Button ---
+if st.button("🔄 Start Over (Clear Generated Mockups)"):
+    for key in ["design_files", "design_names", "final_zip"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.rerun()
 
 # --- Upload Section ---
 design_files = st.file_uploader("📌 Upload Design Images", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 shirt_files = st.file_uploader("🎨 Upload Shirt Templates", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
 
-# --- Reset Button ---
-if st.button("🔄 Start Over (Clear Generated Mockups)"):
-    for key in ["mockup_zip"]:
-        if key in st.session_state:
-            del st.session_state[key]
-    st.rerun()
+# --- Naming Setup ---
+if "design_names" not in st.session_state:
+    st.session_state.design_names = {}
+
+if design_files:
+    st.markdown("### ✏️ Name Each Design")
+    for i, file in enumerate(design_files):
+        default_name = os.path.splitext(file.name)[0]
+        custom_name = st.text_input(
+            f"Name for Design {i+1} ({file.name})", 
+            value=st.session_state.design_names.get(file.name, default_name),
+            key=f"name_input_{i}_{file.name}"
+        )
+        st.session_state.design_names[file.name] = custom_name
 
 # --- Bounding Box Detection ---
 def get_shirt_bbox(pil_image):
@@ -47,11 +58,10 @@ def get_shirt_bbox(pil_image):
         return cv2.boundingRect(largest)
     return None
 
-# --- Live Preview Section ---
+# --- Live Preview ---
 if design_files and shirt_files:
     st.markdown("### 👀 Live Preview")
-
-    selected_design = st.selectbox("Select a Design to Preview", design_files, format_func=lambda x: x.name)
+    selected_design = st.selectbox("Select a Design", design_files, format_func=lambda x: x.name)
     selected_shirt = st.selectbox("Select a Shirt Template", shirt_files, format_func=lambda x: x.name)
 
     try:
@@ -84,10 +94,11 @@ if design_files and shirt_files:
         preview = shirt.copy()
         preview.paste(resized_design, (x, y), resized_design)
         st.image(preview, caption="📸 Live Mockup Preview", use_container_width=True)
+
     except Exception as e:
         st.error(f"⚠️ Preview failed: {e}")
 
-# --- Generate All Mockups ---
+# --- Generate and Save All Mockups (Organized in folders) ---
 if st.button("🚀 Generate All Mockups"):
     if not (design_files and shirt_files):
         st.warning("Upload at least one design and one shirt template.")
@@ -97,7 +108,7 @@ if st.button("🚀 Generate All Mockups"):
             for design_file in design_files:
                 design_file.seek(0)
                 design = Image.open(design_file).convert("RGBA")
-                design_name = os.path.splitext(design_file.name)[0]
+                design_name = st.session_state.design_names.get(design_file.name, "graphic")
 
                 for shirt_file in shirt_files:
                     shirt_file.seek(0)
@@ -127,6 +138,7 @@ if st.button("🚀 Generate All Mockups"):
                     shirt_copy = shirt.copy()
                     shirt_copy.paste(resized_design, (x, y), resized_design)
 
+                    # Save mockup into folder inside ZIP
                     output_path = f"{design_name}/{design_name}_{shirt_name}_tee.png"
                     img_byte_arr = io.BytesIO()
                     shirt_copy.save(img_byte_arr, format='PNG')
@@ -134,22 +146,14 @@ if st.button("🚀 Generate All Mockups"):
                     zipf.writestr(output_path, img_byte_arr.getvalue())
 
         master_zip.seek(0)
-        st.session_state.mockup_zip = master_zip
-        st.success("✅ All mockups generated and zipped!")
+        st.session_state.final_zip = master_zip
+        st.success("✅ All mockups generated and structured!")
 
-# --- Download All Mockups as Nested ZIPs ---
-if st.session_state.zip_files_output and len(st.session_state.zip_files_output) > 1:
-    master_zip = io.BytesIO()
-    with zipfile.ZipFile(master_zip, "w", zipfile.ZIP_DEFLATED) as master_zipf:
-        for name, zip_buffer in st.session_state.zip_files_output.items():
-            zip_buffer.seek(0)
-            # Add the entire individual design ZIP as a file inside the master ZIP
-            master_zipf.writestr(f"{name}.zip", zip_buffer.read())
-    master_zip.seek(0)
-
+# --- Download Button ---
+if "final_zip" in st.session_state:
     st.download_button(
-        label="📦 Download All Mockups by Design (Nested ZIPs)",
-        data=master_zip,
+        label="📦 Download All Mockups (Folders by Design)",
+        data=st.session_state.final_zip,
         file_name="all_mockups_by_design.zip",
         mime="application/zip"
     )
