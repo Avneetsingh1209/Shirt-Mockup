@@ -150,10 +150,10 @@ if st.button("🚀 Generate All Mockups"):
         st.success("✅ All mockups generated and structured!")
 
 # --- Download Button ---
-if "final_zip" in st.session_state:
+if st.session_state.mockup_zip:
     st.download_button(
-        label="📦 Download All Mockups (Folders by Design)",
-        data=st.session_state.final_zip,
-        file_name="all_mockups_by_design.zip",
+        label="📦 Download All Mockups (ZIP with Folders)",
+        data=st.session_state.mockup_zip,
+        file_name="mockups_with_folders.zip",
         mime="application/zip"
     )
